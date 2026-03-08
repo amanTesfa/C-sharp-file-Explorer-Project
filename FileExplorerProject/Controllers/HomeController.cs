@@ -23,6 +23,58 @@ namespace FileExplorerProject.Controllers
             return View();
         }
 
+            [HttpGet]
+            public IActionResult DownloadZip()
+            {
+                var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                if (!Directory.Exists(uploadPath))
+                    return NotFound("No uploaded files found.");
+
+                var files = Directory.GetFiles(uploadPath);
+                if (files.Length == 0)
+                    return NotFound("No files to download.");
+
+                using (var memoryStream = new MemoryStream())
+                {
+                    using (var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Create, true))
+                    {
+                        foreach (var filePath in files)
+                        {
+                            var fileName = Path.GetFileName(filePath);
+                            var entry = archive.CreateEntry(fileName);
+                            using (var entryStream = entry.Open())
+                            using (var fileStream = System.IO.File.OpenRead(filePath))
+                            {
+                                fileStream.CopyTo(entryStream);
+                            }
+                        }
+                    }
+                    memoryStream.Position = 0;
+                    return File(memoryStream.ToArray(), "application/zip", "uploads.zip");
+                }
+            }
+
+            [HttpPost]
+            public IActionResult Upload(List<IFormFile> files)
+            {
+                if (files == null || files.Count == 0)
+                    return Content("No files uploaded.");
+
+                var uploadPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                if (!Directory.Exists(uploadPath))
+                    Directory.CreateDirectory(uploadPath);
+
+                foreach (var file in files)
+                {
+                    var filePath = Path.Combine(uploadPath, file.FileName);
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        file.CopyTo(stream);
+                    }
+                }
+                return Content($"Uploaded {files.Count} file(s) successfully.");
+            }
+
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
