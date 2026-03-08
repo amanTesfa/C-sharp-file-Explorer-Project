@@ -1,4 +1,4 @@
-namespace WebApplication1.Models
+namespace FileExplorerProject.Models
 {
     public class ErrorViewModel
     {
