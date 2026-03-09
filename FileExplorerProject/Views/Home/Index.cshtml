@@ -3,12 +3,11 @@
 }
 
 <div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+    <p class="lead">Upload, view, and manage your files with ease.</p>
 </div>
 
-<div id="drop-area" class="drag-drop-area">
-    <h3>Drag & Drop files here to upload</h3>
+<div id="drop-area" class="drag-drop-area shadow-sm">
+    <h3 style="font-size:1.3rem;font-weight:600;margin-bottom:18px;">Drag & Drop files here to upload</h3>
     <form id="uploadForm" enctype="multipart/form-data" method="post" action="/Home/Upload">
         <input type="file" id="fileElem" name="files" multiple style="display:none" />
         <label for="fileElem" class="btn btn-primary">Select files</label>
@@ -16,9 +15,115 @@
     <div id="uploadStatus"></div>
 </div>
 
+
 <div class="text-center" style="margin-top:20px;">
-    <a href="/Home/DownloadZip" class="btn btn-success">Download All as Zip</a>
+    <a href="#" id="downloadZipBtn" class="btn btn-success">Download All as Zip</a>
     <p style="font-size:small;color:#888;">Downloads all uploaded files as a zip archive.</p>
+</div>
+
+<!-- File Displayer -->
+
+<style>
+    .drag-drop-area {
+        border: 3px dashed #0d6efd;
+        border-radius: 18px;
+        background: #f8f9fa;
+        padding: 36px 24px 28px 24px;
+        margin: 32px auto 0 auto;
+        max-width: 480px;
+        transition: border-color 0.2s, background 0.2s;
+        position: relative;
+    }
+
+    .drag-drop-area.drag-active {
+        border-color: #198754;
+        background: #e9fbe7;
+    }
+
+    .file-card-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 32px;
+        justify-content: center;
+        margin-top: 32px;
+    }
+
+    .file-card {
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
+        padding: 24px 18px 18px 18px;
+        width: 320px;
+        max-height: 260px;
+        overflow: scroll;
+        position: relative;
+        transition: box-shadow 0.2s, transform 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .file-card:hover {
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+        transform: translateY(-2px) scale(1.009);
+    }
+
+    .file-card .delete-btn {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        z-index: 2;
+    }
+
+    .file-card img,
+    .file-card embed {
+        border-radius: 10px;
+        margin-bottom: 12px;
+        max-width: 95%;
+        max-height: 170px;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.10);
+        background: #f6f6f6;
+    }
+
+    .file-card .file-title {
+        font-size: 1.08rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+        text-align: center;
+        word-break: break-all;
+    }
+
+    .file-card .file-link {
+        margin-top: 10px;
+        display: inline-block;
+    }
+
+    /* Excel table styling inside card */
+    .file-card table {
+        width: 100% !important;
+        font-size: 0.98em;
+        margin-bottom: 0;
+        background: #f8fafc;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .file-card th,
+    .file-card td {
+        padding: 6px 10px !important;
+        border: 1px solid #dee2e6 !important;
+        text-align: left;
+    }
+
+    .file-card th {
+        background: #e9ecef !important;
+        font-weight: 600;
+    }
+</style>
+
+<div id="fileDisplayer" class="text-center">
+    <h4 style="margin-top:40px;">Uploaded Files</h4>
+    <div id="fileList" class="file-card-grid"></div>
 </div>
 
 <script>
@@ -55,12 +160,107 @@
             method: 'POST',
             body: formData
         })
-        .then(response => response.text())
-        .then(data => {
-            uploadStatus.innerHTML = data;
-        })
-        .catch(error => {
-            uploadStatus.innerHTML = 'Upload failed.';
-        });
+            .then(response => response.text())
+            .then(data => {
+                uploadStatus.innerHTML = `<div class='alert alert-success'>${data}</div>`;
+                setTimeout(() => { uploadStatus.innerHTML = ''; }, 3000);
+                loadFileList(); // Refresh file list after upload
+            })
+            .catch(error => {
+                uploadStatus.innerHTML = '<div class="alert alert-danger">Upload failed.</div>';
+            });
     }
+
+    // Load and display uploaded files
+    function loadFileList() {
+        fetch('/Home/ListFiles')
+            .then(response => response.json())
+            .then(files => {
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = '';
+                if (files.length === 0) {
+                    fileList.innerHTML = '<div class="text-muted">No files uploaded.</div>';
+                } else {
+                    files.forEach(file => {
+                        const ext = file.split('.').pop().toLowerCase();
+                        const card = document.createElement('div');
+                        card.className = 'file-card';
+                        let content = '';
+                        let deleteBtn = `<button onclick="deleteFile('${encodeURIComponent(file)}')" class="btn btn-danger btn-sm delete-btn" title="Delete"><i class='bi bi-trash'></i> Delete</button>`;
+                        if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext)) {
+                            // Image preview
+                            content = `${deleteBtn}<img src='/uploads/${encodeURIComponent(file)}' alt='${file}' /><div class='file-title'>${file}</div>`;
+                        } else if (["xls", "xlsx"].includes(ext)) {
+                            // Excel preview as table
+                            content = `<div class='file-title'>${file}</div>${deleteBtn}<div id='excel-preview-${file.replace(/[^a-zA-Z0-9]/g, '')}' style='margin-top:10px;'></div>`;
+                            setTimeout(() => renderExcelTable(file), 0);
+                        } else if (ext === "pdf") {
+                            // PDF embed
+                            content = `${deleteBtn}<embed src='/uploads/${encodeURIComponent(file)}' type='application/pdf' width='260' height='170' /><div class='file-title'>${file}</div>`;
+                        } else {
+                            // Default: just a link
+                            content = `<div class='file-title'>${file}</div><a href="/uploads/${encodeURIComponent(file)}" target="_blank" class="btn btn-outline-primary btn-sm file-link">Open</a> ${deleteBtn}`;
+                        }
+                        card.innerHTML = content;
+                        fileList.appendChild(card);
+                    });
+                }
+            });
+    }
+
+    // Excel preview helper (client-side, using SheetJS CDN)
+    function renderExcelTable(file) {
+        const containerId = 'excel-preview-' + file.replace(/[^a-zA-Z0-9]/g, '');
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        fetch(`/uploads/${encodeURIComponent(file)}`)
+            .then(resp => resp.arrayBuffer())
+            .then(data => {
+                if (typeof XLSX === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+                    script.onload = () => renderExcelTable(file);
+                    document.body.appendChild(script);
+                    return;
+                }
+                const workbook = XLSX.read(data, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                let html = XLSX.utils.sheet_to_html(workbook.Sheets[sheetName]);
+                // Add Bootstrap table classes for style
+                html = html.replace('<table', '<table class="table table-bordered table-sm" style="margin:10px;"');
+                container.innerHTML = html;
+            })
+            .catch(() => { container.innerHTML = '<span style="color:red;">Failed to preview Excel file.</span>'; });
+    }
+
+    function deleteFile(fileName) {
+        if (!confirm('Are you sure you want to delete this file?')) return;
+        fetch(`/Home/DeleteFile?fileName=${fileName}`, { method: 'DELETE' })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    loadFileList();
+                } else {
+                    alert('Delete failed: ' + (result.error || 'Unknown error'));
+                }
+            })
+            .catch(() => alert('Delete failed.'));
+    }
+
+    // Download Zip button logic
+    document.getElementById('downloadZipBtn').addEventListener('click', function (e) {
+        e.preventDefault();
+        fetch('/Home/ListFiles')
+            .then(response => response.json())
+            .then(files => {
+                if (!files || files.length === 0) {
+                    alert('No files to download. Please upload files first.');
+                } else {
+                    window.location.href = '/Home/DownloadZip';
+                }
+            });
+    });
+
+    // Initial load
+    loadFileList();
 </script>

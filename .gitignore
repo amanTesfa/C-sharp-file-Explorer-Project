@@ -1,1 +1,24 @@
 .vs/
+# Ignore build output and user-specific files
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+
+# ASP.NET temporary files
+FileExplorerProject/wwwroot/uploads/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Excel/Word temp files
+~$*
